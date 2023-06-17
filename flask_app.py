@@ -7,8 +7,9 @@ from flask import Flask, render_template, request, redirect
 from keras.preprocessing import image
 from keras.applications.imagenet_utils import preprocess_input
 import numpy as np
+import speech_recognition as sr
 from tensorflow.keras.models import load_model
-from flask import Flask, render_template, request, redirect, flash, url_for
+from flask import Flask, render_template, request, redirect, jsonify
 import urllib.request
 from werkzeug.utils import secure_filename
 
@@ -52,9 +53,19 @@ def predict():
 
     return render_template("index.html")
 
-@app.route('/bookappt')
-def bookappt():
-    return render_template('bookappt.html')
+@app.route('/transcribe', methods=['POST'])
+def transcribe():
+    if 'file' not in request.files:
+        return jsonify({'error': 'no file'}), 400
+
+    file = request.files['file']
+    recognizer = sr.Recognizer()
+
+    with sr.AudioFile(file) as source:
+        audio_data = recognizer.record(source)
+        text = recognizer.recognize_google(audio_data)
+
+    return jsonify({'transcription': text})
 
 if __name__ == "__main__":
     
