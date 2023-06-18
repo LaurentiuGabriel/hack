@@ -12,8 +12,19 @@ from tensorflow.keras.models import load_model
 from flask import Flask, render_template, request, redirect, jsonify
 import urllib.request
 from werkzeug.utils import secure_filename
+import openai
 
 app = Flask(__name__)
+
+openai.api_key = os.environ["OPENAI"]
+
+def chat_with_gpt(message):
+    response = openai.ChatCompletion.create(
+              model="gpt-3.5-turbo",
+              messages=[{"role": "system", "content": 'You are an world class automated API that handle text input. I want you to analyze the message that you get and check out if in the message there is any mention about victims, damaged hood, damaged windows, damaged doors, damaged tyres, damaged trunk or total loss. Respond only with a JSON file containing all these elements, and a numeric counter as a value for each JSON property. Do not respond using any text, like greetings or any of that stuff. Just respond with that JSON'},
+                        {"role": "user", "content": message}
+              ])
+    return response["choices"][0]["message"]["content"]
 
 @app.route("/", methods=["GET", "POST"])
 def predict():
@@ -65,7 +76,9 @@ def transcribe():
         audio_data = recognizer.record(source)
         text = recognizer.recognize_google(audio_data)
 
-    return jsonify({'transcription': text})
+    return jsonify(chat_with_gpt(text))
+
+    #return jsonify({'transcription': text})
 
 if __name__ == "__main__":
     

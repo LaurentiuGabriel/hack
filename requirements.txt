@@ -28,3 +28,5 @@ Keras-Preprocessing==1.1.2
 Keras-Applications==1.0.8
 urllib3==1.26.4
 Werkzeug==1.0.1
+openai
+speechRecognition
