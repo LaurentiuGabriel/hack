@@ -9,6 +9,7 @@ from flask import Flask, render_template, request, redirect
 from keras.preprocessing import image
 from keras.applications.imagenet_utils import preprocess_input
 import numpy as np
+import cv2
 from datetime import datetime
 import speech_recognition as sr
 from tensorflow.keras.models import load_model
@@ -26,6 +27,7 @@ EXIF_DATE_FORMAT = "%Y:%m:%d %H:%M:%S"
 ERROR_LEVEL_ANALYSIS = True
 HISTOGRAM_ANALYSIS = True
 METADATA_CHECK = True
+GRADIENT_LUMINANCE_ANALYSIS = True
 
 app = Flask(__name__)
 
@@ -49,6 +51,27 @@ def chat_with_gpt(message):
                         {"role": "user", "content": "This is the text message: " + message}
               ])
     return response["choices"][0]["message"]["content"]
+
+def calculate_gradient(image):
+    grayscale = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+    gradient_x = cv2.Sobel(grayscale, cv2.CV_64F, 1, 0, ksize=3)
+    gradient_y = cv2.Sobel(grayscale, cv2.CV_64F, 0, 1, ksize=3)
+
+    gradient_magnitude = np.sqrt(gradient_x**2 + gradient_y**2)
+    gradient_magnitude = (gradient_magnitude / gradient_magnitude.max() * 255).astype(np.uint8)
+
+    return gradient_magnitude
+
+def is_image_tampered(gradient_image, gradient_threshold, suspicious_pixel_threshold):
+    # find the coordinates of the pixels where the gradient magnitude is higher than the threshold
+    suspicious_points = np.argwhere(gradient_image > gradient_threshold)
+    
+    # check if the number of suspicious points exceeds the threshold
+    if len(suspicious_points) > suspicious_pixel_threshold:
+        return True  # the image might be tampered
+    else:
+        return False  # the image might not be tampered
 
 def check_embedded_objects(file_path):
     pdf_file = PdfReader(file_path)
@@ -186,9 +209,17 @@ def check_image_tampering(file_path, threshold):
         global ERROR_LEVEL_ANALYSIS
         ERROR_LEVEL_ANALYSIS = False 
         return True
+    
+    # image = cv2.imread(file_path)
+    # gradient_image = calculate_gradient(image)
+    # is_tampered = is_image_tampered(gradient_image, gradient_threshold=200, suspicious_pixel_threshold=5000)
+    # if(is_tampered):
+    #     global GRADIENT_LUMINANCE_ANALYSIS
+    #     GRADIENT_LUMINANCE_ANALYSIS = False
+    #     return True
 
-    # If no suspicious spikes in histogram, return False (no tampering detected)
-    return False
+    # # If no suspicious spikes in histogram, return False (no tampering detected)
+    # return False
 
 @app.route("/formdata", methods=["POST"])
 def post_formdata():
