@@ -23,6 +23,9 @@ from PIL import ImageEnhance
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'pdf'}
 EXIF_DATE_FORMAT = "%Y:%m:%d %H:%M:%S"
+ERROR_LEVEL_ANALYSIS = True
+HISTOGRAM_ANALYSIS = True
+METADATA_CHECK = True
 
 app = Flask(__name__)
 
@@ -135,10 +138,14 @@ def check_image_tampering(file_path, threshold):
             tagname = PIL.ExifTags.TAGS.get(tag, tag)
             if tagname == 'Software':
                 print(tagname + ": " + value)
+                global METADATA_CHECK
+                METADATA_CHECK = False
                 return True
             if tagname == 'Copyright':
                 print(f'Copyright info: {value}')  # Print copyright info
                 if value:
+                    
+                    METADATA_CHECK = False
                     print("tag copyright is here!")
                     return True  # Image may have a copyright, return True
 
@@ -150,6 +157,7 @@ def check_image_tampering(file_path, threshold):
 
         # If both DateTimeOriginal and DateTimeDigitized exist, check if they are the same
         if datetime_original and datetime_digitized and datetime_original != datetime_digitized:
+            METADATA_CHECK = False
             print('DateTimeOriginal and DateTimeDigitized are not the same!')
             return True
 
@@ -167,12 +175,16 @@ def check_image_tampering(file_path, threshold):
         if max(hist_channel) > hist_threshold:
             print(str(max(hist_channel)) + " > " + str(hist_threshold))
             print("Possible image tampering detected: Spike in histogram")
+            global HISTOGRAM_ANALYSIS
+            HISTOGRAM_ANALYSIS = False
             return True
     
     ela_im = ela_analysis(file_path)
     error_value = get_im_extreme(ela_im)
     if(detect_fraud_through_ela(error_value)):
         print("Possible image tampering identified through ELA")
+        global ERROR_LEVEL_ANALYSIS
+        ERROR_LEVEL_ANALYSIS = False 
         return True
 
     # If no suspicious spikes in histogram, return False (no tampering detected)
@@ -216,13 +228,15 @@ def post_formdata():
         if file_type == 'pdf':
             tampering_result = check_pdf(file_path, start_date)
             if(tampering_result == False):
-                return jsonify({'error': 'The PDF file seems to have been tampered with.'}), 400
+                return jsonify({'error': 'The PDF file seems to have been tampered with.'}), 200
         
             return jsonify({
             'filename': filename,
             'policyStartDate': policy_start_date,
             'policyEndDate': policy_end_date,
-            'country': country
+            'country': country,
+            'status': "The document seems to be the original one",
+            "details": {"ErrorLevelAnalysisPassed": ERROR_LEVEL_ANALYSIS, "HistogramAnalysisPassed": HISTOGRAM_ANALYSIS, "MetaDataCheckPassed": METADATA_CHECK }
         })
 
         # Fetch the EXIF data from the image
@@ -264,7 +278,8 @@ def post_formdata():
                 if photo_country != country:
                     return jsonify({'error': 'Photo location does not match policy country.'}), 400
         if check_image_tampering(file_path, 0.0245):
-            return jsonify({'error': 'The image seems to have been tampered with.'}), 400
+            
+            return jsonify({'error': 'The image seems to have been tampered with.', "details": {"ErrorLevelAnalysisPassed": ERROR_LEVEL_ANALYSIS, "HistogramAnalysisPassed": HISTOGRAM_ANALYSIS, "MetaDataCheckPassed": METADATA_CHECK }}), 200
    
 
         # Process the data...
@@ -272,7 +287,9 @@ def post_formdata():
             'filename': filename,
             'policyStartDate': policy_start_date,
             'policyEndDate': policy_end_date,
-            'country': country
+            'country': country,
+            'status': "The document seems to be the original one",
+            "details": {"ErrorLevelAnalysisPassed": ERROR_LEVEL_ANALYSIS, "HistogramAnalysisPassed": HISTOGRAM_ANALYSIS, "MetaDataCheckPassed": METADATA_CHECK }
         })
 
     return jsonify({'error': 'Allowed file types are png, jpg, jpeg, pdf'}), 400
