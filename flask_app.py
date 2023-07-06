@@ -16,8 +16,12 @@ from flask import Flask, render_template, request, redirect, jsonify
 import urllib.request
 from werkzeug.utils import secure_filename
 import openai
+import fitz 
+from PyPDF2 import PdfReader
+from PIL import ImageChops
+from PIL import ImageEnhance
 
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'pdf'}
 EXIF_DATE_FORMAT = "%Y:%m:%d %H:%M:%S"
 
 app = Flask(__name__)
@@ -43,6 +47,137 @@ def chat_with_gpt(message):
               ])
     return response["choices"][0]["message"]["content"]
 
+def check_embedded_objects(file_path):
+    pdf_file = PdfReader(file_path)
+    if "/AcroForm" in pdf_file.trailer["/Root"]:
+        return False
+    return True
+
+def check_fonts(file_path):
+    doc = fitz.open(file_path)
+    fonts = set()
+    for i in range(len(doc)):
+        for font in doc.get_page_fonts(i):
+            fonts.add(font[3])  # the font name is at index 3
+
+    suspicious_fonts = {"UnknownFont"}  # add suspicious font names here
+
+    for font in fonts:
+        if font in suspicious_fonts:
+            return False
+    return True
+
+def ela_analysis(filename):
+    basename, extension = os.path.splitext(filename)
+    resaved = basename + '.resaved.jpg'
+    ela = basename + '.ela.png'  
+    im = Image.open(filename)
+    im.save(resaved, 'JPEG', quality=95)
+    resaved_im = Image.open(resaved)
+    ela_im = ImageChops.difference(im, resaved_im)
+    return ela_im
+
+def get_im_extreme(ela_im):
+    extrema = ela_im.getextrema()
+    max_diff = max([ex[1] for ex in extrema])
+    return max_diff    
+
+def detect_fraud_through_ela(max_diff, threshold=10):
+    if max_diff > threshold:
+        return True
+    else: 
+        return False
+
+def check_pdf(file_path, date):
+    pdf_file = open(file_path, 'rb')
+    read_pdf = PdfReader(pdf_file)
+    info = read_pdf.metadata
+    print(f"PDF Metadata: {info}")
+
+    # Check the creation date
+    if info.creation_date and info.creation_date.date() < date:
+
+        print("The PDF date is not within the policy date: " + info.creation_date.date() + "<" + date)
+        return False
+    if info.modification_date != None:
+        if info.creation_date != info.modification_date:
+            print("The creation date is different than the modification date.")
+            return False
+
+    # Check if the PDF is encrypted
+    if read_pdf.is_encrypted:
+        print("The PDF should not be encrypted.")
+        return False
+    
+    if(check_embedded_objects(file_path) == False):
+        print("The PDF contains embedded AcroForms")
+        return False
+
+    if(check_fonts(file_path) == False):
+        print("The PDF contains irregular fonts!")
+        return False
+
+    
+    
+    return True
+
+
+def check_image_tampering(file_path, threshold):
+    img = Image.open(file_path)
+    exif_data = img._getexif()
+
+    datetime_original = None
+    datetime_digitized = None
+
+
+    if exif_data is not None:
+        for tag, value in exif_data.items():
+            tagname = PIL.ExifTags.TAGS.get(tag, tag)
+            if tagname == 'Software':
+                print(tagname + ": " + value)
+                return True
+            if tagname == 'Copyright':
+                print(f'Copyright info: {value}')  # Print copyright info
+                if value:
+                    print("tag copyright is here!")
+                    return True  # Image may have a copyright, return True
+
+            # Consistency check: Compare DateTimeOriginal and DateTimeDigitized
+            if tagname == 'DateTimeOriginal':
+                datetime_original = value
+            elif tagname == 'DateTimeDigitized':
+                datetime_digitized = value
+
+        # If both DateTimeOriginal and DateTimeDigitized exist, check if they are the same
+        if datetime_original and datetime_digitized and datetime_original != datetime_digitized:
+            print('DateTimeOriginal and DateTimeDigitized are not the same!')
+            return True
+
+    # Histogram analysis
+    img_hist = img.histogram()
+
+    # Separate channels
+    r = img_hist[0:256]
+    g = img_hist[256:256*2]
+    b = img_hist[256*2:256*3]
+
+    # Check for spikes in histogram
+    hist_threshold = threshold * img.size[0] * img.size[1]  # threshold set to 10% of the total pixels
+    for hist_channel in [r, g, b]:
+        if max(hist_channel) > hist_threshold:
+            print(str(max(hist_channel)) + " > " + str(hist_threshold))
+            print("Possible image tampering detected: Spike in histogram")
+            return True
+    
+    ela_im = ela_analysis(file_path)
+    error_value = get_im_extreme(ela_im)
+    if(detect_fraud_through_ela(error_value)):
+        print("Possible image tampering identified through ELA")
+        return True
+
+    # If no suspicious spikes in histogram, return False (no tampering detected)
+    return False
+
 @app.route("/formdata", methods=["POST"])
 def post_formdata():
     # Check if the post request has the file part
@@ -60,6 +195,7 @@ def post_formdata():
         filename = secure_filename(file.filename)
         file_path = os.path.join('static/save/', filename)
         file.save(file_path)
+             
 
         policy_start_date = request.form.get('policyStartDate')
         policy_end_date = request.form.get('policyEndDate')
@@ -74,6 +210,21 @@ def post_formdata():
         except ValueError:
             return jsonify({'error': 'Incorrect date format, should be YYYY-MM-DD.'}), 400
 
+        
+        file_type = filename.rsplit('.', 1)[1].lower()
+
+        if file_type == 'pdf':
+            tampering_result = check_pdf(file_path, start_date)
+            if(tampering_result == False):
+                return jsonify({'error': 'The PDF file seems to have been tampered with.'}), 400
+        
+            return jsonify({
+            'filename': filename,
+            'policyStartDate': policy_start_date,
+            'policyEndDate': policy_end_date,
+            'country': country
+        })
+
         # Fetch the EXIF data from the image
         img = PIL.Image.open(file_path)
         exif_data = img._getexif()
@@ -87,10 +238,8 @@ def post_formdata():
             lon_val = None
             
             for tag, value in exif_data.items():
-                print(tag)
                 if tag == PIL.ExifTags.TAGS.get('DateTimeOriginal') or tag == PIL.ExifTags.TAGS.get('DateTime') or tag == 306 :
                     photo_date = datetime.strptime(value, EXIF_DATE_FORMAT).date()
-                    print(photo_date)
                 elif tag == PIL.ExifTags.TAGS.get('GPSInfo'):
                     for t, v in getattr(value, 'items', lambda: {})():
                         if t == PIL.ExifTags.GPSTAGS.get('GPSLatitudeRef'):
@@ -114,6 +263,9 @@ def post_formdata():
                 photo_country = get_country(latitude, longitude)
                 if photo_country != country:
                     return jsonify({'error': 'Photo location does not match policy country.'}), 400
+        if check_image_tampering(file_path, 0.0245):
+            return jsonify({'error': 'The image seems to have been tampered with.'}), 400
+   
 
         # Process the data...
         return jsonify({
@@ -123,7 +275,7 @@ def post_formdata():
             'country': country
         })
 
-    return jsonify({'error': 'Allowed file types are png, jpg, jpeg.'}), 400
+    return jsonify({'error': 'Allowed file types are png, jpg, jpeg, pdf'}), 400
 
 
 @app.route("/", methods=["GET", "POST"])
@@ -169,7 +321,7 @@ def transcribe():
         text = recognizer.recognize_google(audio_data)
         print(text)
 
-    return jsonify(chat_with_gpt(text))
+    return chat_with_gpt(text)
 
 if __name__ == "__main__":
     
