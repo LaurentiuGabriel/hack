@@ -404,7 +404,7 @@ def transcribe():
     
     # return chat_with_gpt(text)
 
-    return text
+    return jsonify({'data': text})
 
 if __name__ == "__main__":
     
