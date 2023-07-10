@@ -10,6 +10,7 @@ from keras.preprocessing import image
 from keras.applications.imagenet_utils import preprocess_input
 import numpy as np
 import cv2
+from sklearn.cluster import DBSCAN
 from datetime import datetime
 import speech_recognition as sr
 from tensorflow.keras.models import load_model
@@ -24,14 +25,36 @@ from PIL import ImageEnhance
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'pdf'}
 EXIF_DATE_FORMAT = "%Y:%m:%d %H:%M:%S"
-ERROR_LEVEL_ANALYSIS = True
-HISTOGRAM_ANALYSIS = True
-METADATA_CHECK = True
-GRADIENT_LUMINANCE_ANALYSIS = True
+ERROR_LEVEL_ANALYSIS = "Not done"
+HISTOGRAM_ANALYSIS = "Not done"
+METADATA_CHECK = "Not done"
+GRADIENT_LUMINANCE_ANALYSIS = "Not done"
+COPY_MOVE_DETECTION_ANALYSIS = "Not done"
 
 app = Flask(__name__)
 
 openai.api_key = os.environ["OPENAI"]
+
+def siftDetector(filename):
+    image= cv2.imread(filename)
+    sift = cv2.SIFT_create()
+    gray= cv2.cvtColor(image,cv2.COLOR_BGR2GRAY) 
+    descriptors = sift.detectAndCompute(gray, None)
+    return descriptors
+
+def detectForgery(descriptors, eps=40, min_sample=2):
+    clusters = DBSCAN(eps=eps, min_samples=min_sample).fit(descriptors)  # Find clusters using DBSCAN
+    size = np.unique(clusters.labels_).shape[0] - 1  # Identify the number of clusters formed
+    # Create another image for marking forgery
+    if (size == 0) and (np.unique(clusters.labels_)[0] == -1):
+        global COPY_MOVE_DETECTION_ANALYSIS
+        COPY_MOVE_DETECTION_ANALYSIS = "Passed"
+        return False
+    else:
+        COPY_MOVE_DETECTION_ANALYSIS = "Failed"
+        return True
+
+		
 
 def allowed_file(filename):
     return '.' in filename and \
@@ -162,13 +185,13 @@ def check_image_tampering(file_path, threshold):
             if tagname == 'Software':
                 print(tagname + ": " + value)
                 global METADATA_CHECK
-                METADATA_CHECK = False
+                METADATA_CHECK = "Failed. The software tag is here: " + value
                 return True
             if tagname == 'Copyright':
                 print(f'Copyright info: {value}')  # Print copyright info
                 if value:
                     
-                    METADATA_CHECK = False
+                    METADATA_CHECK = "Failed. The Copyright tag was found."
                     print("tag copyright is here!")
                     return True  # Image may have a copyright, return True
 
@@ -180,7 +203,7 @@ def check_image_tampering(file_path, threshold):
 
         # If both DateTimeOriginal and DateTimeDigitized exist, check if they are the same
         if datetime_original and datetime_digitized and datetime_original != datetime_digitized:
-            METADATA_CHECK = False
+            METADATA_CHECK = "Failed. DateTimeOriginal and DateTimeDigitized are not the same!"
             print('DateTimeOriginal and DateTimeDigitized are not the same!')
             return True
 
@@ -199,7 +222,7 @@ def check_image_tampering(file_path, threshold):
             print(str(max(hist_channel)) + " > " + str(hist_threshold))
             print("Possible image tampering detected: Spike in histogram")
             global HISTOGRAM_ANALYSIS
-            HISTOGRAM_ANALYSIS = False
+            HISTOGRAM_ANALYSIS = "Failed"
             return True
     
     ela_im = ela_analysis(file_path)
@@ -207,7 +230,7 @@ def check_image_tampering(file_path, threshold):
     if(detect_fraud_through_ela(error_value)):
         print("Possible image tampering identified through ELA")
         global ERROR_LEVEL_ANALYSIS
-        ERROR_LEVEL_ANALYSIS = False 
+        ERROR_LEVEL_ANALYSIS = "Failed" 
         return True
     
     # image = cv2.imread(file_path)
@@ -218,8 +241,18 @@ def check_image_tampering(file_path, threshold):
     #     GRADIENT_LUMINANCE_ANALYSIS = False
     #     return True
 
+    # detection_output = siftDetector(file_path)
+    # is_it_forged = detectForgery(detection_output)
+
+    # if(is_it_forged):
+    #     return True
+
     # # If no suspicious spikes in histogram, return False (no tampering detected)
-    # return False
+    ERROR_LEVEL_ANALYSIS = "Passed"
+    HISTOGRAM_ANALYSIS = "Passed"
+    METADATA_CHECK = "Passed"
+
+    return False
 
 @app.route("/formdata", methods=["POST"])
 def post_formdata():
@@ -267,7 +300,7 @@ def post_formdata():
             'policyEndDate': policy_end_date,
             'country': country,
             'status': "The document seems to be the original one",
-            "details": {"ErrorLevelAnalysisPassed": ERROR_LEVEL_ANALYSIS, "HistogramAnalysisPassed": HISTOGRAM_ANALYSIS, "MetaDataCheckPassed": METADATA_CHECK }
+            "details": {"ErrorLevelAnalysisStatus": ERROR_LEVEL_ANALYSIS, "HistogramAnalysisStatus": HISTOGRAM_ANALYSIS, "MetaDataCheckStatus": METADATA_CHECK }
         })
 
         # Fetch the EXIF data from the image
@@ -310,7 +343,7 @@ def post_formdata():
                     return jsonify({'error': 'Photo location does not match policy country.'}), 400
         if check_image_tampering(file_path, 0.0245):
             
-            return jsonify({'error': 'The image seems to have been tampered with.', "details": {"ErrorLevelAnalysisPassed": ERROR_LEVEL_ANALYSIS, "HistogramAnalysisPassed": HISTOGRAM_ANALYSIS, "MetaDataCheckPassed": METADATA_CHECK }}), 200
+            return jsonify({'error': 'The image seems to have been tampered with.', "details": {"ErrorLevelAnalysisStatus": ERROR_LEVEL_ANALYSIS, "HistogramAnalysisStatus": HISTOGRAM_ANALYSIS, "MetaDataCheckStatus": METADATA_CHECK }}), 200
    
 
         # Process the data...
@@ -320,7 +353,7 @@ def post_formdata():
             'policyEndDate': policy_end_date,
             'country': country,
             'status': "The document seems to be the original one",
-            "details": {"ErrorLevelAnalysisPassed": ERROR_LEVEL_ANALYSIS, "HistogramAnalysisPassed": HISTOGRAM_ANALYSIS, "MetaDataCheckPassed": METADATA_CHECK }
+            "details": {"ErrorLevelAnalysisStatus": ERROR_LEVEL_ANALYSIS, "HistogramAnalysisStatus": HISTOGRAM_ANALYSIS, "MetaDataCheckStatus": METADATA_CHECK }
         })
 
     return jsonify({'error': 'Allowed file types are png, jpg, jpeg, pdf'}), 400
@@ -368,8 +401,10 @@ def transcribe():
         audio_data = recognizer.record(source)
         text = recognizer.recognize_google(audio_data)
         print(text)
+    
+    # return chat_with_gpt(text)
 
-    return chat_with_gpt(text)
+    return text
 
 if __name__ == "__main__":
     
