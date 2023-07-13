@@ -368,15 +368,20 @@ def predict():
         if "file" not in request.files:
             return redirect(request.url)
         uploaded_file = request.files["file"]
-        if not uploaded_file:
-            return
-        img_bytes = uploaded_file.read()
-        input_image = Image.open(io.BytesIO(img_bytes))
+        if uploaded_file.filename == '':
+            return redirect(request.url)
+            
+        # Saving the file locally and override it if it already exists
+        filename = uploaded_file.filename
+        file_path = os.path.join("uploads", filename)
+        uploaded_file.save(file_path)
+        
+        input_image = Image.open(file_path)
         detection_results = model(input_image)  # inference
         detection_results.render()  # updates results.ims with boxes and labels
         Image.fromarray(detection_results.ims[0]).save("static/images/image0.jpg")
-        filename=uploaded_file.filename
-        resized_image = image.load_img(filename, target_size=(224, 224))
+
+        resized_image = image.load_img(file_path, target_size=(224, 224))
         preprocessed_image = image.img_to_array(resized_image)
         preprocessed_image = np.expand_dims(preprocessed_image, axis=0)
         preprocessed_image = preprocess_input(preprocessed_image)
