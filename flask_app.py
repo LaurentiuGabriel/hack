@@ -25,8 +25,6 @@ from PIL import ImageEnhance
 from OpenSSL import SSL
 
 context = SSL.Context(SSL.SSLv23_METHOD)
-context.use_privatekey_file('yourserver.key')
-context.use_certificate_file('yourserver.crt')
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'pdf'}
 EXIF_DATE_FORMAT = "%Y:%m:%d %H:%M:%S"
@@ -420,4 +418,4 @@ if __name__ == "__main__":
     model = torch.hub.load('ultralytics/yolov5', 'yolov5s', pretrained=True)  # force_reload = recache latest code
     model.eval()
 
-    app.run(host="0.0.0.0", port=args.port)
+    app.run(ssl_context=('/etc/letsencrypt/live/www.claims-detective.com/fullchain.pem', '/etc/letsencrypt/live/www.claims-detective.com/privkey.pem'), host="0.0.0.0", port=args.port)
