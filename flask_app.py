@@ -22,6 +22,11 @@ import fitz
 from PyPDF2 import PdfReader
 from PIL import ImageChops
 from PIL import ImageEnhance
+from OpenSSL import SSL
+
+context = SSL.Context(SSL.SSLv23_METHOD)
+context.use_privatekey_file('yourserver.key')
+context.use_certificate_file('yourserver.crt')
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'pdf'}
 EXIF_DATE_FORMAT = "%Y:%m:%d %H:%M:%S"
@@ -409,7 +414,7 @@ def transcribe():
 if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description="Damage Detective")
-    parser.add_argument("--port", default=5000, type=int, help="port number")
+    parser.add_argument("--port", default=8443, type=int, help="port number")
     args = parser.parse_args()
 
     model = torch.hub.load('ultralytics/yolov5', 'yolov5s', pretrained=True)  # force_reload = recache latest code
