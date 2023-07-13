@@ -412,10 +412,10 @@ def transcribe():
 if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description="Damage Detective")
-    parser.add_argument("--port", default=8443, type=int, help="port number")
+    parser.add_argument("--port", default=5000, type=int, help="port number")
     args = parser.parse_args()
 
     model = torch.hub.load('ultralytics/yolov5', 'yolov5s', pretrained=True)  # force_reload = recache latest code
     model.eval()
 
-    app.run(ssl_context=('/etc/letsencrypt/live/www.claims-detective.com/fullchain.pem', '/etc/letsencrypt/live/www.claims-detective.com/privkey.pem'), host="0.0.0.0", port=args.port)
+    app.run(host="0.0.0.0", port=args.port)
