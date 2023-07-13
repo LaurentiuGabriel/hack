@@ -373,7 +373,7 @@ def predict():
             
         # Saving the file locally and override it if it already exists
         filename = uploaded_file.filename
-        file_path = os.path.join("uploads", filename)
+        file_path = os.path.join("static", filename)
         uploaded_file.save(file_path)
         
         input_image = Image.open(file_path)
