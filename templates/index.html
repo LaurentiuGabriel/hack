@@ -21,8 +21,6 @@
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
     <script src="https://code.jquery.com/jquery-3.4.1.slim.min.js"></script>
 
-
-
     <style>
         .bd-placeholder-img {
             font-size: 1.125rem;
@@ -76,14 +74,13 @@
                         </div>
                         <div class="hero-media">
                             <div class="header-illustration">
-                                <img class="header-illustration-image asset-light"
-                                    src="static/images/header-illustration-light.svg" alt="Header illustration">
+                              
                                 <img class="header-illustration-image asset-dark"
                                     src="static/images/header-illustration-dark.svg" alt="Header illustration">
                             </div>
                             <div class="hero-media-illustration">
                                 <img class="hero-media-illustration-image asset-light"
-                                    src="static/images/hero-media-illustration-light.svg" alt="Hero media illustration">
+                                    src="static/images/hero-media-illustration-light.svg" alt="Hero media illustration" style="position: relative">
                                 <img class="hero-media-illustration-image asset-dark"
                                     src="static/images/hero-media-illustration-dark.svg" alt="Hero media illustration">
                             </div>
@@ -293,16 +290,16 @@
                                         <form id="myForm" class="form-signin" method="POST" enctype="multipart/form-data">
                                             <h1 class="h3 mb-5 font-weight-normal">Upload any image for fraud detection</h1>
                                             <input type="file" name="file" class="form-control-file" id="inputfile"
-                                                style="display: block; width: 100%; padding: 12px 20px; margin: 8px 0; box-sizing: border-box; border: none; border-radius: 4px; background-color: #3CBC8D; color: white;">
+                                            style="display: block; width: 170%; padding: 12px 20px; margin: 8px 0; box-sizing: border-box; border: none; border-radius: 4px; background-color: #3CBC8D; color: white;">
                                             <br />
                                             <input type="text" name="policyStartDate" placeholder="Policy Start Date"
-                                                class="form-control" required style="display: block; width: 100%;">
-                                            <input type="text" name="policyEndDate" placeholder="Policy End Date" style="display: block; width: 100%;"
+                                                class="form-control" required style="display: block; width: 170%;">
+                                            <input type="text" name="policyEndDate" placeholder="Policy End Date" style="display: block; width: 170%;"
                                                 class="form-control" required>
-                                            <input type="text" name="country" placeholder="Country" class="form-control" style="display: block; width: 100%;"
+                                            <input type="text" name="country" placeholder="Country" class="form-control" style="display: block; width: 170%;"
                                                 required>
                                             <br />
-                                            <button class="button button-primary" type="submit" style="display: block; width: 100%;">Submit</button>
+                                            <button class="button button-primary submit-button" type="submit" style="display: block; width: 170%;">Submit</button>
                                         </form>
             
                                     </div>
@@ -339,29 +336,7 @@
             </div>
             
             <!-- JavaScript -->
-            <script>
-                document.getElementById('myForm').addEventListener('submit', function(event) {
-                    event.preventDefault(); // prevent the form from submitting the traditional way
-                    var formData = new FormData(this); // create a new FormData object and pass in 'this' (the form) as the argument
             
-                    fetch('/formdata', {
-                        method: 'POST',
-                        body: formData
-                    })
-                    .then(function(response) {
-                        return response.json(); // parse the response as JSON
-                    })
-                    .then(function(data) {
-                        // insert the response data into the modal
-                        document.getElementById('responseModalBody').textContent = JSON.stringify(data, null, 2);
-                        // display the modal
-                        $('#responseModal').modal('show');
-                    })
-                    .catch(function(error) {
-                        console.error('Error:', error);
-                    });
-                });
-            </script>
             
 
 
@@ -370,9 +345,9 @@
                     <div class="features-inner section-inner has-bottom-divider">
                         <div class="features-header text-center">
                             <div class="container-sm">
-                                <h2 class="section-title mt-0">🚗 Damage Detection 🚗</h2>
+                                <h2 class="section-title mt-0">🚗 Damage Detection 🏠</h2>
                                 <p class="section-paragraph">ClaimsDetective uses machine learning to detect damage in
-                                    pictures with cars.</p>
+                                    pictures submitted to claims.</p>
                                 <div class="features-image">
                                 </div>
                             </div>
@@ -386,18 +361,21 @@
                                     <div class="feature-content">
                                         <h3 class="feature-title mt-0">Test Damage Detection</h3>
                                         <p class="text-sm mb-0">Test our product by uploading a photo containing the
-                                            damage of the car for which the claim is raised for.</p>
+                                            damage of the car or house for which the claim is raised for.</p>
                                     </div>
                                     <div class="cta-cta">
-                                        <form class="form-signin" method=post enctype=multipart/form-data>
-                                            <h1 class="h3 mb-5 font-weight-normal">Upload any image for damage detection
-                                            </h1>
-                                            <input type="file" name="file" class="form-control-file" id="inputfile"
-                                                style="display: block; width: 100%; padding: 12px 20px; margin: 8px 0; box-sizing: border-box; border: none; border-radius: 4px; background-color: #3CBC8D; color: white;">
-
-                                            <br />
-                                            <button class="button button-primary" style="display: block; width: 100%;" type="submit">Submit</a>
-                                        </form>
+                                        <form id="claimsForm" class="form-signin" method="POST"
+                                        enctype="multipart/form-data">
+                                        <h1 class="h3 mb-5 font-weight-normal">Upload any image for claims
+                                            assessment
+                                        </h1>
+                                        <input type="file" name="file" class="form-control-file" id="inputfile"
+                                            style="display: block; width: 170%; padding: 12px 20px; margin: 8px 0; box-sizing: border-box; border: none; border-radius: 4px; background-color: #3CBC8D; color: white;">
+                                        <br />
+        
+                                        <button class="button button-primary submit-button" id="submit-form-claims" type="submit"
+                                            style="display: block; width: 170%;">Submit</button>
+                                    </form>
                                     </div>
                                 </div>
                             </div>
@@ -434,9 +412,9 @@
                                         <form id="voiceForm" class="form-signin" method="POST" enctype="multipart/form-data">
                                 
                                             <input type="file" name="file" class="form-control-file" id="inputAudio"
-                                                style="display: block; width: 100%; padding: 12px 20px; margin: 8px 0; box-sizing: border-box; border: none; border-radius: 4px; background-color: #3CBC8D; color: white;">
+                                                style="display: block; width: 170%; padding: 12px 20px; margin: 8px 0; box-sizing: border-box; border: none; border-radius: 4px; background-color: #3CBC8D; color: white;">
                                             <br />
-                                            <button class="button button-primary" style="display: block; width: 100%;" type="button" onclick="audioForm()">Submit</button>
+                                            <button class="button button-primary" style="display: block; width: 170%;" type="button" onclick="audioForm()">Submit</button>
                                         </form>
                                     </div>
                                 </div>
@@ -476,7 +454,73 @@
                     });
                 }
                 </script>
+                <script>
+                    function parseResponse(data) {
+                        var extractedCode = data;
+                        let htmlMatch = data.match(/```(?:html)?([\s\S]+?)```/);
+            
+                        // Check if there is a match
+                        if (htmlMatch && htmlMatch.length > 1) extractedCode = htmlMatch[1].trim();
+                        return extractedCode;
+                    }
+            
+                    function changeSubmitButtonText(id, text) {
+                        let button = document.getElementById(id);
+                        button.innerHTML = text;
+                    }
+                </script>
+                 <script>
+                    document.getElementById('claimsForm').addEventListener('submit', function (event) {
+                        event.preventDefault();
+                        changeSubmitButtonText("submit-form-claims", "Loading ...");
+                        var formData = new FormData(this);
+            
+                        fetch('/claims', {
+                            method: 'POST',
+                            body: formData
+                        })
+                            .then(function (response) {
+                                return response.text();
+                            })
+                            .then(function (data) {
+                                debugger;
+                                var parsedData = parseResponse(data)
+                                document.getElementById('responseModalBody').innerHTML = parsedData;
+            
+                                // Display the modal
+                                $('#responseModal').modal('show');
+                                changeSubmitButtonText("submit-form-claims", "Submit")
+                            })
+                            .catch(function (error) {
+                                console.error('Error:', error);
+                            });
+                    });
+                </script>
         </main>
+
+        <script>
+            document.getElementById('myForm').addEventListener('submit', function(event) {
+                event.preventDefault(); // prevent the form from submitting the traditional way
+                var formData = new FormData(this); // create a new FormData object and pass in 'this' (the form) as the argument
+        
+                fetch('/formdata', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(function(response) {
+                    return response.json(); // parse the response as JSON
+                })
+                .then(function(data) {
+                    // insert the response data into the modal
+                    document.getElementById('responseModalBody').textContent = JSON.stringify(data, null, 2);
+                    // display the modal
+                    $('#responseModal').modal('show');
+                })
+                .catch(function(error) {
+                    console.error('Error:', error);
+                });
+            });
+        </script>
 
         <footer class="site-footer has-top-divider">
             <div class="container">
@@ -544,21 +588,7 @@
     <script src="//stackpath.bootstrapcdn.com/bootstrap/4.2.1/js/bootstrap.min.js"
         integrity="sha384-B0UglyR+jN6CkvvICOB2joaf5I4l3gm9GU6Hc1og6Ls7i6U/mkkaduKaBhlAXv9k"
         crossorigin="anonymous"></script>
-    <script type="text/javascript">
-        $('#inputfile').bind('change', function () {
-            let fileSize = this.files[0].size / 1024 / 1024; // this gives in MB
-            if (fileSize > 25) {
-                $("#inputfile").val(null);
-                alert('file is too big. images more than 25MB are not allowed')
-                return
-            }
-            let ext = $('#inputfile').val().split('.').pop().toLowerCase();
-            if ($.inArray(ext, ['jpg', 'jpeg', 'pdf']) == -1) {
-                $("#inputfile").val(null);
-                alert('only jpeg/jpg/pdf files are allowed!');
-            }
-        });
-    </script>
+
 
     <script src="static/js/main.min.js"></script>
 </body>

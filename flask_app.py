@@ -17,12 +17,17 @@ from tensorflow.keras.models import load_model
 from flask import Flask, render_template, request, redirect, jsonify
 import urllib.request
 from werkzeug.utils import secure_filename
+import base64
+import requests
+from pyquery import PyQuery as pq
+from lxml import etree
 import openai
 import fitz 
 from PyPDF2 import PdfReader
 from PIL import ImageChops
 from PIL import ImageEnhance
 from OpenSSL import SSL
+import base64
 
 context = SSL.Context(SSL.SSLv23_METHOD)
 
@@ -37,6 +42,7 @@ COPY_MOVE_DETECTION_ANALYSIS = "Not done"
 app = Flask(__name__)
 
 openai.api_key = os.environ["OPENAI"]
+api_key = os.environ["OPENAI"]
 
 def siftDetector(filename):
     image= cv2.imread(filename)
@@ -69,6 +75,48 @@ def get_country(latitude, longitude):
     address = location.raw['address']
     country = address.get('country', '')
     return country
+
+# Function to encode the image
+def encode_image(image_path):
+  with open(image_path, "rb") as image_file:
+    return base64.b64encode(image_file.read()).decode('utf-8')
+
+def claims_assessment(file):
+
+    base64_image = encode_image(file)
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}"
+    }
+
+    payload = {
+        "model": "gpt-4-vision-preview",
+        "messages": [
+        {
+            "role": "user",
+            "content": [
+        {
+          "type": "text",
+          "text": "This image is supposed to be used for registering a claim. Please perform an analysis on it to check what is the damage. It can be a household item, the house itself, or a car. Get as much data as possible from the image. Don't mention you are a language model from OpenAI. I want you to mention a price of the damage. If you don't know it, invent it, but make it in a reasonable way. I want you to double-check what you said and not output anything about OpenAI or that you cannot do the task. Be creative! Output this as an HTML <div> (with other HTML tags inside as well to make it looks pretty) and try to make it succint, but pretty (use colors if you feel like it), use bold fonts and emojis. Keep your response to max 500 characters."
+        },
+        {
+          "type": "image_url",
+          "image_url": {
+            "url": f"data:image/jpeg;base64,{base64_image}"
+          }
+        }
+    ]
+    }
+    ],
+    "max_tokens": 300
+    }
+
+    response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
+    response_json = response.json()
+    message_content = response_json['choices'][0]['message']['content']
+    
+    return message_content
 
 def chat_with_gpt(message):
     response = openai.ChatCompletion.create(
@@ -364,37 +412,6 @@ def post_formdata():
 
 @app.route("/", methods=["GET", "POST"])
 def predict():
-    if request.method == "POST":
-        if "file" not in request.files:
-            return redirect(request.url)
-        uploaded_file = request.files["file"]
-        if uploaded_file.filename == '':
-            return redirect(request.url)
-            
-        # Saving the file locally and override it if it already exists
-        filename = uploaded_file.filename
-        file_path = os.path.join("static", filename)
-        uploaded_file.save(file_path)
-        
-        input_image = Image.open(file_path)
-        detection_results = model(input_image)  # inference
-        detection_results.render()  # updates results.ims with boxes and labels
-        Image.fromarray(detection_results.ims[0]).save("static/images/image0.jpg")
-
-        resized_image = image.load_img(file_path, target_size=(224, 224))
-        preprocessed_image = image.img_to_array(resized_image)
-        preprocessed_image = np.expand_dims(preprocessed_image, axis=0)
-        preprocessed_image = preprocess_input(preprocessed_image)
-        damage_model = load_model('dmg_model.h5')
-        predictions = damage_model.predict(preprocessed_image)
-        prediction_result = predictions[0][0]
-        if prediction_result < predictions[0][1]:
-            print("messy")
-        else:
-            print("clean")
-        
-        return redirect("static/images/image0.jpg")
-
     return render_template("index.html")
 
 @app.route('/transcribe', methods=['POST'])
@@ -414,13 +431,20 @@ def transcribe():
 
     return jsonify({'data': text})
 
+@app.route("/claims", methods=["POST"])
+def claims():
+    if 'file' not in request.files:
+        return jsonify({'error': 'no file'}), 400
+    file = request.files['file']
+    filename = secure_filename(file.filename)
+    file.save(os.path.join("static", filename))
+    file_path = os.path.join("static", filename)
+    return claims_assessment(file_path)
+
 if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description="Damage Detective")
     parser.add_argument("--port", default=5000, type=int, help="port number")
     args = parser.parse_args()
-
-    model = torch.hub.load('ultralytics/yolov5', 'yolov5s', pretrained=True)  # force_reload = recache latest code
-    model.eval()
 
     app.run(host="0.0.0.0", port=args.port)
