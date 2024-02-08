@@ -28,6 +28,8 @@ from PIL import ImageChops
 from PIL import ImageEnhance
 from OpenSSL import SSL
 import base64
+import exifread
+
 
 context = SSL.Context(SSL.SSLv23_METHOD)
 
@@ -168,14 +170,17 @@ def check_fonts(file_path):
     return True
 
 def ela_analysis(filename):
-    basename, extension = os.path.splitext(filename)
-    resaved = basename + '.resaved.jpg'
-    ela = basename + '.ela.png'  
-    im = Image.open(filename)
-    im.save(resaved, 'JPEG', quality=95)
-    resaved_im = Image.open(resaved)
-    ela_im = ImageChops.difference(im, resaved_im)
-    return ela_im
+    try:
+        basename, extension = os.path.splitext(filename)
+        resaved = basename + '.resaved.jpg'
+        ela = basename + '.ela.png'  
+        im = Image.open(filename)
+        im.save(resaved, 'JPEG', quality=95)
+        resaved_im = Image.open(resaved)
+        ela_im = ImageChops.difference(im, resaved_im)
+        return ela_im
+    except Exception as e:
+        print("")
 
 def get_im_extreme(ela_im):
     extrema = ela_im.getextrema()
@@ -225,11 +230,13 @@ def check_pdf(file_path, date):
 def check_image_tampering(file_path, threshold):
     img = Image.open(file_path)
     exif_data = img._getexif()
-
     datetime_original = None
     datetime_digitized = None
-
-
+    f = open(file_path, 'rb')
+    
+    tags = exifread.process_file(f)
+    print(tags)
+    
     if exif_data is not None:
         for tag, value in exif_data.items():
             tagname = PIL.ExifTags.TAGS.get(tag, tag)
@@ -237,6 +244,12 @@ def check_image_tampering(file_path, threshold):
                 print(tagname + ": " + value)
                 global METADATA_CHECK
                 METADATA_CHECK = "Failed. The software tag is here: " + value
+                return True
+            if tagname == 'claim__generator__info_name':
+                METADATA_CHECK = "Failed. The picture has been created with AI"
+                return True
+            if tagname == 'actions_software_agent':
+                METADATA_CHECK = "Failed. The picture has been created with AI"
                 return True
             if tagname == 'Copyright':
                 print(f'Copyright info: {value}')  # Print copyright info
@@ -257,8 +270,10 @@ def check_image_tampering(file_path, threshold):
             METADATA_CHECK = "Failed. DateTimeOriginal and DateTimeDigitized are not the same!"
             print('DateTimeOriginal and DateTimeDigitized are not the same!')
             return True
+    
 
     # Histogram analysis
+    
     img_hist = img.histogram()
 
     # Separate channels
@@ -276,13 +291,16 @@ def check_image_tampering(file_path, threshold):
             HISTOGRAM_ANALYSIS = "Failed"
             return True
     
-    ela_im = ela_analysis(file_path)
-    error_value = get_im_extreme(ela_im)
-    if(detect_fraud_through_ela(error_value)):
-        print("Possible image tampering identified through ELA")
-        global ERROR_LEVEL_ANALYSIS
-        ERROR_LEVEL_ANALYSIS = "Failed" 
-        return True
+    try:
+        ela_im = ela_analysis(file_path)
+        error_value = get_im_extreme(ela_im)
+        if(detect_fraud_through_ela(error_value)):
+            print("Possible image tampering identified through ELA")
+            global ERROR_LEVEL_ANALYSIS
+            ERROR_LEVEL_ANALYSIS = "Failed" 
+            return True
+    except Exception as e:
+        print("not done on png")
     
     # image = cv2.imread(file_path)
     # gradient_image = calculate_gradient(image)
