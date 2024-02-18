@@ -28,7 +28,7 @@ from PIL import ImageChops
 from PIL import ImageEnhance
 from OpenSSL import SSL
 import base64
-import exifread
+import exiftool
 
 
 context = SSL.Context(SSL.SSLv23_METHOD)
@@ -227,6 +227,15 @@ def check_pdf(file_path, date):
     return True
 
 
+def get_exif_data(filename):
+    with exiftool.ExifTool() as et:
+        metadata = et.get_metadata(filename)
+        return metadata
+
+def contains_adobe(data):
+    claim_generator = data.get('JUMBF:Claim_generator', '')
+    return 'adobe' in claim_generator.lower()
+
 def check_image_tampering(file_path, threshold):
     img = Image.open(file_path)
     exif_data = img._getexif()
@@ -234,15 +243,18 @@ def check_image_tampering(file_path, threshold):
     datetime_digitized = None
     f = open(file_path, 'rb')
     
-    tags = exifread.process_file(f)
+    tags = get_exif_data(file_path)
     print(tags)
+    if contains_adobe(tags):
+        global METADATA_CHECK
+        METADATA_CHECK = "Failed. The image might be generated with Adobe software"
+        return True
     
     if exif_data is not None:
         for tag, value in exif_data.items():
             tagname = PIL.ExifTags.TAGS.get(tag, tag)
             if tagname == 'Software':
                 print(tagname + ": " + value)
-                global METADATA_CHECK
                 METADATA_CHECK = "Failed. The software tag is here: " + value
                 return True
             if tagname == 'claim__generator__info_name':
